@@ -1,0 +1,12 @@
+[package]
+name = "host-sp1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-sdk = { version = "6.10.0", features = ["blocking"] }
+libaw-proof = { path = "../../../crates/proof" }
+serde_json = "1"
+
+[build-dependencies]
+sp1-build = "6.10.0"

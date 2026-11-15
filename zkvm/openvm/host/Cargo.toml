@@ -1,0 +1,11 @@
+[package]
+name = "host-openvm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+openvm-sdk = "2.1.0"
+openvm-build = "2.1.0"
+openvm-stark-sdk = "2.1.0"
+libaw-proof = { path = "../../../crates/proof" }
+serde_json = "1"

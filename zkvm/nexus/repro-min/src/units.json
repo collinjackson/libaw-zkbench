@@ -1,0 +1,377 @@
+{
+ "Infantry": {
+  "id": 1,
+  "cost": 1000,
+  "move": 3,
+  "move_type": "F",
+  "fuel": 99,
+  "fuel_per_turn": 0,
+  "ammo": 0,
+  "vision": 2,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Mech": {
+  "id": 2,
+  "cost": 3000,
+  "move": 2,
+  "move_type": "B",
+  "fuel": 70,
+  "fuel_per_turn": 0,
+  "ammo": 3,
+  "vision": 2,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ },
+ "Md.Tank": {
+  "id": 3,
+  "cost": 16000,
+  "move": 5,
+  "move_type": "T",
+  "fuel": 50,
+  "fuel_per_turn": 0,
+  "ammo": 8,
+  "vision": 1,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ },
+ "Tank": {
+  "id": 4,
+  "cost": 7000,
+  "move": 6,
+  "move_type": "T",
+  "fuel": 70,
+  "fuel_per_turn": 0,
+  "ammo": 9,
+  "vision": 3,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ },
+ "Recon": {
+  "id": 5,
+  "cost": 4000,
+  "move": 8,
+  "move_type": "W",
+  "fuel": 80,
+  "fuel_per_turn": 0,
+  "ammo": 0,
+  "vision": 5,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "APC": {
+  "id": 6,
+  "cost": 5000,
+  "move": 6,
+  "move_type": "T",
+  "fuel": 70,
+  "fuel_per_turn": 0,
+  "ammo": 0,
+  "vision": 1,
+  "range": [
+   0,
+   0
+  ],
+  "second_weapon": false
+ },
+ "Artillery": {
+  "id": 7,
+  "cost": 6000,
+  "move": 5,
+  "move_type": "T",
+  "fuel": 50,
+  "fuel_per_turn": 0,
+  "ammo": 9,
+  "vision": 1,
+  "range": [
+   2,
+   3
+  ],
+  "second_weapon": false
+ },
+ "Rocket": {
+  "id": 8,
+  "cost": 15000,
+  "move": 5,
+  "move_type": "W",
+  "fuel": 50,
+  "fuel_per_turn": 0,
+  "ammo": 6,
+  "vision": 1,
+  "range": [
+   3,
+   5
+  ],
+  "second_weapon": false
+ },
+ "Anti-Air": {
+  "id": 9,
+  "cost": 8000,
+  "move": 6,
+  "move_type": "T",
+  "fuel": 60,
+  "fuel_per_turn": 0,
+  "ammo": 9,
+  "vision": 2,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Missile": {
+  "id": 10,
+  "cost": 12000,
+  "move": 4,
+  "move_type": "W",
+  "fuel": 50,
+  "fuel_per_turn": 0,
+  "ammo": 6,
+  "vision": 5,
+  "range": [
+   3,
+   5
+  ],
+  "second_weapon": false
+ },
+ "Fighter": {
+  "id": 11,
+  "cost": 20000,
+  "move": 9,
+  "move_type": "A",
+  "fuel": 99,
+  "fuel_per_turn": 5,
+  "ammo": 9,
+  "vision": 2,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Bomber": {
+  "id": 12,
+  "cost": 22000,
+  "move": 7,
+  "move_type": "A",
+  "fuel": 99,
+  "fuel_per_turn": 5,
+  "ammo": 9,
+  "vision": 2,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "B-Copter": {
+  "id": 13,
+  "cost": 9000,
+  "move": 6,
+  "move_type": "A",
+  "fuel": 99,
+  "fuel_per_turn": 2,
+  "ammo": 6,
+  "vision": 3,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ },
+ "T-Copter": {
+  "id": 14,
+  "cost": 5000,
+  "move": 6,
+  "move_type": "A",
+  "fuel": 99,
+  "fuel_per_turn": 2,
+  "ammo": 0,
+  "vision": 2,
+  "range": [
+   0,
+   0
+  ],
+  "second_weapon": false
+ },
+ "Battleship": {
+  "id": 15,
+  "cost": 28000,
+  "move": 5,
+  "move_type": "S",
+  "fuel": 99,
+  "fuel_per_turn": 1,
+  "ammo": 9,
+  "vision": 2,
+  "range": [
+   2,
+   6
+  ],
+  "second_weapon": false
+ },
+ "Cruiser": {
+  "id": 16,
+  "cost": 18000,
+  "move": 6,
+  "move_type": "S",
+  "fuel": 99,
+  "fuel_per_turn": 1,
+  "ammo": 9,
+  "vision": 3,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Lander": {
+  "id": 17,
+  "cost": 12000,
+  "move": 6,
+  "move_type": "L",
+  "fuel": 99,
+  "fuel_per_turn": 1,
+  "ammo": 0,
+  "vision": 1,
+  "range": [
+   0,
+   0
+  ],
+  "second_weapon": false
+ },
+ "Sub": {
+  "id": 18,
+  "cost": 20000,
+  "move": 5,
+  "move_type": "S",
+  "fuel": 60,
+  "fuel_per_turn": 1,
+  "ammo": 6,
+  "vision": 5,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Black Boat": {
+  "id": 28,
+  "cost": 7500,
+  "move": 7,
+  "move_type": "L",
+  "fuel": 60,
+  "fuel_per_turn": 1,
+  "ammo": 0,
+  "vision": 1,
+  "range": [
+   0,
+   0
+  ],
+  "second_weapon": false
+ },
+ "Carrier": {
+  "id": 29,
+  "cost": 30000,
+  "move": 5,
+  "move_type": "S",
+  "fuel": 99,
+  "fuel_per_turn": 1,
+  "ammo": 9,
+  "vision": 4,
+  "range": [
+   3,
+   8
+  ],
+  "second_weapon": false
+ },
+ "Stealth": {
+  "id": 30,
+  "cost": 24000,
+  "move": 6,
+  "move_type": "A",
+  "fuel": 60,
+  "fuel_per_turn": 5,
+  "ammo": 6,
+  "vision": 4,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": false
+ },
+ "Neotank": {
+  "id": 46,
+  "cost": 22000,
+  "move": 6,
+  "move_type": "T",
+  "fuel": 99,
+  "fuel_per_turn": 0,
+  "ammo": 9,
+  "vision": 1,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ },
+ "Piperunner": {
+  "id": 960900,
+  "cost": 20000,
+  "move": 9,
+  "move_type": "P",
+  "fuel": 99,
+  "fuel_per_turn": 0,
+  "ammo": 9,
+  "vision": 4,
+  "range": [
+   2,
+   5
+  ],
+  "second_weapon": true
+ },
+ "Black Bomb": {
+  "id": 968731,
+  "cost": 25000,
+  "move": 9,
+  "move_type": "A",
+  "fuel": 45,
+  "fuel_per_turn": 5,
+  "ammo": 0,
+  "vision": 1,
+  "range": [
+   0,
+   0
+  ],
+  "second_weapon": false
+ },
+ "Mega Tank": {
+  "id": 1141438,
+  "cost": 28000,
+  "move": 4,
+  "move_type": "T",
+  "fuel": 50,
+  "fuel_per_turn": 0,
+  "ammo": 3,
+  "vision": 1,
+  "range": [
+   1,
+   1
+  ],
+  "second_weapon": true
+ }
+}

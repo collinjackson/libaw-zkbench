@@ -1,0 +1,16 @@
+[package]
+name = "referee-nexus"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+nexus-rt = { git = "https://github.com/nexus-xyz/nexus-zkvm", tag = "v0.3.6" }
+libaw-proof = { path = "../../../crates/proof", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

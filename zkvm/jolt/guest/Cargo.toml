@@ -1,0 +1,23 @@
+[package]
+name = "referee-jolt"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+guest = []
+
+[dependencies]
+jolt = { package = "jolt-sdk", git = "https://github.com/a16z/jolt", rev = "8a92874", features = ["guest-std"] }
+libaw-proof = { path = "../../../crates/proof" }
+serde_json = "1"
+
+[lib]
+test = false
+doctest = false
+bench = false
+
+[[bin]]
+name = "referee-jolt"
+path = "src/main.rs"
+test = false
+bench = false

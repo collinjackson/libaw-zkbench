@@ -1,0 +1,18 @@
+[package]
+name = "referee-nexus-host"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+nexus-sdk = { git = "https://github.com/nexus-xyz/nexus-zkvm", tag = "v0.3.6" }
+nexus-vm = { git = "https://github.com/nexus-xyz/nexus-zkvm", tag = "v0.3.6" }
+nexus-common = { git = "https://github.com/nexus-xyz/nexus-zkvm", tag = "v0.3.6" }
+postcard = { version = "1.0.10", features = ["alloc", "use-std"], default-features = false }
+libaw-proof = { path = "../../../crates/proof" }
+serde_json = "1"
+serde = "1"
+
+[profile.release]
+opt-level = 3

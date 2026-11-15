@@ -1,0 +1,25 @@
+# Jolt runner for the zkVM benchmark (README.md). Its own workspace, so libaw's build never pulls in
+# zkVM crates. Jolt is pinned to a commit (it has no crates.io release).
+[package]
+name = "host-jolt"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = ["guest"]
+
+[dependencies]
+jolt-sdk = { git = "https://github.com/a16z/jolt", rev = "8a92874", features = ["host"] }
+guest = { package = "referee-jolt", path = "./guest" }
+libaw-proof = { path = "../../crates/proof" }
+serde_json = "1"
+
+[patch.crates-io]
+# Jolt's own patches (its arkworks fork), copied from its Cargo.toml at the pinned commit.
+ark-bn254 = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-ff = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-ec = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-serialize = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+
+[profile.release]
+opt-level = 3

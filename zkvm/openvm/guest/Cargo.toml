@@ -1,0 +1,15 @@
+[package]
+name = "referee-openvm"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+openvm = { version = "2.1.0", features = ["std"] }
+libaw-proof = { path = "../../../crates/proof" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true

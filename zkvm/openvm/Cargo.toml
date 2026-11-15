@@ -1,0 +1,9 @@
+# OpenVM runner for the zkVM benchmark (README.md). Its own workspace, so libaw's build never pulls
+# in zkVM crates. The host builds the guest (guest/) with OpenVM's SDK.
+[workspace]
+resolver = "2"
+members = ["host"]
+exclude = ["guest"]
+
+[profile.release]
+opt-level = 3

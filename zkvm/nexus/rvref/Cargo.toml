@@ -1,0 +1,10 @@
+[package]
+name = "rvref"
+version = "0.1.0"
+edition = "2021"
+description = "A plain RV32IM interpreter with Nexus 0.3.6's syscalls, to diff a guest's run against Nexus's emulator."
+
+[workspace]
+
+[profile.release]
+debug = true

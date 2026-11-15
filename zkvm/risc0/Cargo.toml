@@ -1,0 +1,8 @@
+# RISC Zero runner for the zkVM benchmark (README.md). Its own workspace, so libaw's
+# build never pulls in zkVM crates.
+[workspace]
+resolver = "2"
+members = ["host", "methods"]
+
+[profile.release]
+opt-level = 3
