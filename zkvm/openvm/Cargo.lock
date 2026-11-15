@@ -1128,6 +1128,7 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+ "serde",
 ]
 
 [[package]]
@@ -1372,6 +1373,8 @@ dependencies = [
 name = "libaw"
 version = "0.1.0"
 dependencies = [
+ "hashbrown 0.15.5",
+ "libm",
  "serde",
  "serde_json",
 ]
