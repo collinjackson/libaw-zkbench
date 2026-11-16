@@ -1,12 +1,17 @@
-// Runs the turn prover guest in RISC Zero's executor (no proof) for one bot on a workload's
-// start position, prints cycles and the split, and checks the turn against a native run.
-//   cargo run --release -p host --bin turn -- ../workloads/turn.json BOT.wasm [MAX_ACTIONS]
-use methods::TURN_ELF;
+// Runs the turn prover guest in RISC Zero's executor for one bot on a workload's start position,
+// prints cycles and the split, and checks the turn against a native run; with --prove (or
+// --groth16) proves it too (src/prove.rs).
+//   cargo run --release -p host --bin turn -- ../workloads/turn.json BOT.wasm [MAX_ACTIONS] [--prove|--groth16] [--receipt FILE]
+use methods::{TURN_ELF, TURN_ID};
 use risc0_zkvm::{default_executor, ExecutorEnv};
 use std::time::Instant;
 
+#[path = "../prove.rs"]
+mod prove;
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let opts = prove::Opts::from_args(&mut args);
     let w: libaw_proof::Input = serde_json::from_slice(&std::fs::read(&args[1]).unwrap()).unwrap();
     let wasm = std::fs::read(&args[2]).unwrap();
     let max_actions = args.get(3).map(|s| s.parse().unwrap()).unwrap_or(400);
@@ -29,4 +34,5 @@ fn main() {
         args[2], wasm.len(), native.moves.len(), info.cycles(), info.segments.iter().map(|s| 1u64 << s.po2).sum::<u64>(), info.segments.len(),
     );
     println!("module sha256 {}", journal["module_sha256"]);
+    prove::run(&opts, &bytes, TURN_ELF, TURN_ID);
 }

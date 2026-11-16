@@ -228,3 +228,123 @@ pub fn play_turn(input: Input, wasm: &[u8], clock: fn() -> u64) -> Result<(Outpu
     Ok((Output { seat: me as u32, moves, day: s.day as u32, current: s.current as u32, state_hash }, c))
 }
 
+
+#[derive(Serialize, Deserialize)]
+pub struct GameInput {
+    pub state: State,
+    pub seed: u64,
+    /// The game is a draw once the day passes this (the arena's `max_days`; 30 there).
+    pub max_days: u32,
+    pub max_actions: u32,
+    pub fuel_per_action: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct GameOutput {
+    pub seed: u64,
+    /// Player ids in seat order (by `order`); the first module plays the first seat.
+    pub seats: Vec<u32>,
+    /// The winning team, or None for a draw at the day limit.
+    pub winner: Option<String>,
+    pub reason: String,
+    pub day: u32,
+    pub actions: u32,
+    pub turns: u32,
+    /// Strikes (illegal picks, faults, the action cap) and fuel by seat.
+    pub strikes: Vec<u32>,
+    pub fuel: Vec<u64>,
+    pub state_hash: u64,
+}
+
+/// Plays a whole game between two bots, as libaw-arena's referee does (referee.rs `play`): each
+/// seat's bot sees only its own view; an illegal pick or a fault ends that seat's turn and is a
+/// strike; at most `max_actions` actions a turn; the game ends when one side is left or after
+/// `max_days` (a draw). Luck comes from libaw-proof's `Rolls`, not the arena's ChaCha8 dice, so
+/// the games differ from the arena's. Returns the result and the final state.
+pub fn play_game(input: GameInput, wasms: [&[u8]; 2], clock: fn() -> u64) -> Result<(GameOutput, State, Costs), String> {
+    let mut c = Costs::default();
+    let GameInput { state: mut s, seed, max_days, max_actions, fuel_per_action } = input;
+    let mut order: Vec<_> = s.players.iter().map(|p| (p.order, p.id)).collect();
+    order.sort();
+    let seats: Vec<u32> = order.iter().map(|&(_, id)| id).collect();
+    if seats.len() != 2 {
+        return Err(format!("{} players; a game here has two", seats.len()));
+    }
+    let t = clock();
+    let mut bots = [Bot::new(wasms[0], fuel_per_action, clock)?, Bot::new(wasms[1], fuel_per_action, clock)?];
+    c.load = clock() - t;
+    let mut rolls = Rolls::new(seed);
+    let (mut strikes, mut fuel) = (vec![0u32; 2], vec![0u64; 2]);
+    let (mut actions, mut turns, mut this_turn) = (0u32, 0u32, 0u32);
+    let (winner, reason) = loop {
+        if let Some(t) = sim::winner(&s) {
+            break (Some(t), "last_standing");
+        }
+        if s.day > max_days {
+            break (None, "day_limit");
+        }
+        let me = s.current;
+        let k = seats.iter().position(|&p| p == me).ok_or("the seat to move has no bot")?;
+        let t0 = clock();
+        let seen = fog::player_view(&s, me);
+        let legal = arena_abi::legal(&seen);
+        let t1 = clock();
+        let (reply, used, queries, qc) = bots[k].act(seen, legal);
+        let t2 = clock();
+        let (a, mut strike) = match reply {
+            Ok(Some(a)) if legal_for_mover(&s, &a) => (a, false),
+            _ => (Action::EndTurn, true),
+        };
+        let a = if this_turn >= max_actions && a != Action::EndTurn {
+            strike = true;
+            Action::EndTurn
+        } else {
+            a
+        };
+        let before = s.clone();
+        let mut ended = a == Action::EndTurn;
+        if sim::step(&mut s, &a, &mut |lo, hi| rolls.roll(lo, hi)).is_err() {
+            // The engine refused what is_legal accepted (an engine bug): end the turn, as the
+            // arena's referee does.
+            s = before;
+            sim::step(&mut s, &Action::EndTurn, &mut |lo, hi| rolls.roll(lo, hi)).map_err(|e| format!("engine refused end turn: {e}"))?;
+            ended = true;
+        }
+        let t3 = clock();
+        c.input += t1 - t0;
+        c.bot += t2 - t1;
+        c.query += qc;
+        c.queries += queries as u64;
+        c.apply += t3 - t2;
+        fuel[k] += used;
+        strikes[k] += strike as u32;
+        actions += 1;
+        if ended {
+            turns += 1;
+            this_turn = 0;
+        } else {
+            this_turn += 1;
+        }
+    };
+    let t = clock();
+    let state_hash = fnv1a(&serde_json::to_vec(&s).unwrap());
+    c.hash = clock() - t;
+    let day = if reason == "day_limit" { max_days } else { s.day };
+    let out = GameOutput { seed, seats, winner, reason: reason.to_string(), day, actions, turns, strikes, fuel, state_hash };
+    Ok((out, s, c))
+}
+
+/// A start position from a file: a libaw state, or an AWBW-style turn file (with `gameState`),
+/// as libaw-arena's `load_state` reads them. The input to `play_game` is always a libaw state.
+#[cfg(feature = "std")]
+pub fn load_state(bytes: &[u8]) -> Result<State, String> {
+    let v: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if v.get("gameState").is_some() {
+        return Ok(libaw::awbw::state_from(&v));
+    }
+    if let Some(s) = v.get("state") {
+        // a libaw-proof workload
+        return serde_json::from_value(s.clone()).map_err(|e| e.to_string());
+    }
+    serde_json::from_value(v).map_err(|e| e.to_string())
+}

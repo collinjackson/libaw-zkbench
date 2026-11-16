@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 methods = { path = "../methods" }
+# Executes and proves through r0vm (installed by rzup), a child process: scripts/guarded.sh
+# counts the memory of the whole process tree.
 risc0-zkvm = "~3.0.6"
+bincode = "1"
 libaw-proof = { path = "../../../crates/proof" }
 serde_json = "1"
 libaw-turn = { path = "../../../crates/turn" }
