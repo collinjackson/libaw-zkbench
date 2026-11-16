@@ -195,16 +195,32 @@ Legality is checked with `libaw::actions::is_legal` (one unit's moves), not the 
 
 `crates/turn` is the turn prover of libaw-arena's proofs design: it takes a position and a bot's
 WebAssembly module, runs the bot in wasmi (an interpreter, `no_std`, default features off,
-`portable-dispatch`), answers its `libaw.query` calls natively with libaw, checks and applies
-each action with libaw, and stops at the bot's `end_turn` (cap 400 actions, fuel 2,000,000,000 per
-call, as in the arena). The RISC Zero guest (`zkvm/risc0/methods/turn`) commits the module's
-sha256 and the turn's actions and final hash; it logs a cycle split from `env::cycle_count`.
+`portable-dispatch`), answers its `libaw.ask` calls natively with libaw-arena's `arena-abi`
+crate (the referee's own code), checks and applies each action with libaw, and stops when the
+bot ends its turn (cap 400 actions, fuel 2,000,000,000 per call, as in the arena). The RISC Zero
+guest (`zkvm/risc0/methods/turn`) commits the module's sha256 and the turn's actions and final
+hash; it logs a cycle split from `env::cycle_count`. It needs libaw and libaw-arena checked out
+next to this repo.
 
     cd zkvm/risc0 && cargo build --release -p host --bin turn
     ../../scripts/guarded.sh ./target/release/turn ../workloads/turn.json BOT.wasm
 
-RISC Zero 3.0.6 executor, `turn` workload's start position, libaw-arena's example bots (Nov 2026).
-Output matches the native run for each.
+RISC Zero 3.0.6 executor, `turn` workload's start position, libaw-arena's example bots with its
+binary interface (bot-abi.md, Nov 2026). Output matches the native run for each.
+
+| Bot | Module | Actions | User cycles | wasmi (bot's own code) | Host answers | View and legal list | Apply actions | Execute (Mac) |
+|---|---|---|---|---|---|---|---|---|
+| random | 22 KB | 17 | 71M | 43M | 0.8M | 22M | 3.8M | 0.8 s |
+| greedy | 23 KB | 18 | 282M | 248M | 0.5M | 28M | 3.8M | 2.3 s |
+| hinted (asks for libaw's baseline pick) | 18 KB | 18 | 387M | 3M | 345M | 33M | 3.8M | 3.1 s |
+| baseline (libaw inside the module) | 236 KB | 18 | 21.5B | 21.5B | 0.8M | 33M | 3.8M | 164 s |
+
+The native referee's turn is 28.9M. hinted and baseline play the same moves: computing them in
+the host costs 345M, and in the interpreter 21.5B, about 60 times more. A bot that brings its
+own engine pays for running it interpreted.
+
+With the JSON interface this replaced, where every action the bot got its whole view as JSON and
+parsed it inside the interpreter, the same turn cost:
 
 | Bot | Module | Actions | User cycles | wasmi (bot's own code) | libaw queries | Apply actions | Bot input JSON | Load module | Execute (Mac) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -212,8 +228,5 @@ Output matches the native run for each.
 | random | 84 KB | 17 | 2.79B | 2.70B | 44M (17) | 28M | 18M | 4.1M | 22 s |
 | baseline (libaw inside the module) | 460 KB | 18 | 27.4B | 27.3B | 0 | 37M | 19M | 21M | 213 s |
 
-The native referee's turn is 28.9M, so interpreting even the simplest bot costs about 90 times
-libaw's own work. wasmi spends about 6 cycles per unit of fuel on greedy and 13 on baseline
-(436M and 2.17B fuel for the turn). Every action the bot parses its whole view from JSON
-again, inside the interpreter. Executor peak RSS was about 100 MB. `auto-dispatch` (tail-call
-dispatch) faults in the guest with a store access fault; `portable-dispatch` works.
+Executor peak RSS was under 100 MB. `auto-dispatch` (tail-call dispatch) faults in the guest
+with a store access fault; `portable-dispatch` works.

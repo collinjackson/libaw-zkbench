@@ -8,11 +8,12 @@ description = "The turn prover's program: play one turn of an arena bot (a WebAs
 
 [features]
 default = ["std"]
-std = ["libaw/std", "serde/std", "serde_json/std", "libaw-proof/std"]
+std = ["libaw/std", "serde/std", "serde_json/std", "libaw-proof/std", "arena-abi/std"]
 
 [dependencies]
 libaw = { path = "../../../libaw/crates/engine", default-features = false }
 libaw-proof = { path = "../proof", default-features = false }
+arena-abi = { path = "../../../libaw-arena/crates/abi", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 wasmi = { version = "2.0.0", default-features = false, features = ["stable", "validate", "portable-dispatch", "prefer-btree-collections", "libm"] }

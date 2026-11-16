@@ -6,3 +6,7 @@ exclude = ["zkvm"]
 [workspace.package]
 edition = "2021"
 license = "MIT OR Apache-2.0"
+
+# arena-abi (libaw-arena) names libaw by its git URL; build it against the same local libaw.
+[patch."https://github.com/collinjackson/libaw"]
+libaw = { path = "../libaw/crates/engine" }

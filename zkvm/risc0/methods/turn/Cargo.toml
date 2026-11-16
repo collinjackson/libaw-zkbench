@@ -13,3 +13,7 @@ serde_json = "1"
 [profile.release]
 opt-level = 3
 lto = true
+
+# arena-abi (libaw-arena) names libaw by its git URL; build it against the same local libaw.
+[patch."https://github.com/collinjackson/libaw"]
+libaw = { path = "../../../../../libaw/crates/engine" }

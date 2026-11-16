@@ -1,8 +1,9 @@
 //! The turn prover's program (libaw-arena docs/proofs.md): play one turn of an arena bot from a
 //! position. The bot is a WebAssembly module (libaw-arena docs/bot-abi.md) run by wasmi, an
-//! interpreter, so the proven program is the same whatever the bot. Its `libaw.query` calls are
-//! answered natively with libaw, and each action it picks is checked and applied with libaw, as
-//! libaw-arena's referee does (crates/arena/src/bot.rs, referee.rs).
+//! interpreter, so the proven program is the same whatever the bot. Its `libaw.ask` calls are
+//! answered natively by libaw-arena's arena-abi crate, the same code as the referee's, and each
+//! action it picks is checked and applied with libaw, as libaw-arena's referee does
+//! (crates/arena/src/bot.rs, referee.rs).
 //!
 //! Luck comes from libaw-proof's `Rolls`, as in the referee workloads, so the cycle counts
 //! compare with them.
@@ -17,13 +18,13 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use libaw::actions::{is_legal, legal_actions, unit_actions, Action};
-use libaw::awbw::{action_from_contract, action_to_contract};
+use libaw::actions::{is_legal, Action};
+use libaw::awbw::action_to_contract;
 use libaw::state::State;
 use libaw::{fog, sim};
 use libaw_proof::{fnv1a, Rolls};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use wasmi::{Caller, Config, Engine, Extern, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, TypedFunc};
 
 #[derive(Serialize, Deserialize)]
@@ -32,7 +33,7 @@ pub struct Input {
     pub seed: u64,
     /// After this many actions the turn is ended for the bot (the arena's rule; 400 there).
     pub max_actions: u32,
-    /// Fuel for one `arena_act` call (2,000,000,000 in the arena).
+    /// Fuel for one `arena_pick` call (2,000,000,000 in the arena).
     pub fuel_per_action: u64,
 }
 
@@ -69,6 +70,7 @@ pub struct Costs {
 
 struct Ctx {
     view: State,
+    legal: Vec<Action>,
     limits: StoreLimits,
     queries: u32,
     query_cycles: u64,
@@ -77,25 +79,6 @@ struct Ctx {
 
 fn pack(ptr: u32, len: u32) -> i64 {
     ((ptr as u64) << 32 | len as u64) as i64
-}
-fn unpack(v: i64) -> (usize, usize) {
-    ((v as u64 >> 32) as usize, (v as u64 & 0xffff_ffff) as usize)
-}
-
-/// libaw-arena's `bot::answer`: a bot's engine question, against its own view.
-pub fn answer(view: &State, q: &Value) -> Value {
-    match q["q"].as_str() {
-        Some("legal_actions") => legal_actions(view).iter().map(action_to_contract).collect::<Vec<_>>().into(),
-        Some("unit_actions") => match q["unit"].as_u64() {
-            Some(u) => unit_actions(view, u as _).iter().map(action_to_contract).collect::<Vec<_>>().into(),
-            None => json!({"error": "unit_actions needs a unit id"}),
-        },
-        Some("is_legal") => match action_from_contract(view, &q["action"]) {
-            Ok(a) => json!(is_legal(view, &a)),
-            Err(_) => json!(false),
-        },
-        _ => json!({"error": "unknown query; ask legal_actions, unit_actions or is_legal"}),
-    }
 }
 
 struct Bot {
@@ -116,22 +99,19 @@ impl Bot {
         let engine = Engine::new(&cfg);
         let module = Module::new(&engine, wasm).map_err(|e| format!("not a wasm module: {e}"))?;
         for imp in module.imports() {
-            if (imp.module(), imp.name()) != ("libaw", "query") {
-                return Err(format!("imports {}.{}: bots may import only libaw.query", imp.module(), imp.name()));
+            if (imp.module(), imp.name()) != ("libaw", "ask") {
+                return Err(format!("imports {}.{}: bots may import only libaw.ask", imp.module(), imp.name()));
             }
         }
         let mut linker = Linker::new(&engine);
         linker
-            .func_wrap("libaw", "query", |mut caller: Caller<'_, Ctx>, ptr: i32, len: i32| -> Result<i64, wasmi::Error> {
-                let mem = caller.get_export("memory").and_then(Extern::into_memory).ok_or_else(|| wasmi::Error::new("no memory export"))?;
+            .func_wrap("libaw", "ask", |mut caller: Caller<'_, Ctx>, kind: i32, arg: i32| -> Result<i64, wasmi::Error> {
                 let t0 = (caller.data().clock)();
-                let mut buf = vec![0u8; len as u32 as usize];
-                mem.read(&caller, ptr as u32 as usize, &mut buf).map_err(|e| wasmi::Error::new(e.to_string()))?;
-                let q: Value = serde_json::from_slice(&buf).unwrap_or(Value::Null);
-                let out = serde_json::to_vec(&answer(&caller.data().view, &q)).map_err(|e| wasmi::Error::new(e.to_string()))?;
+                let out = arena_abi::answer(&caller.data().view, &caller.data().legal, kind, arg);
                 let t1 = (caller.data().clock)();
                 caller.data_mut().queries += 1;
                 caller.data_mut().query_cycles += t1 - t0;
+                let mem = caller.get_export("memory").and_then(Extern::into_memory).ok_or_else(|| wasmi::Error::new("no memory export"))?;
                 let alloc = caller.get_export("arena_alloc").and_then(Extern::into_func).ok_or_else(|| wasmi::Error::new("no arena_alloc export"))?;
                 let at = alloc.typed::<i32, i32>(&caller)?.call(&mut caller, out.len() as i32)?;
                 mem.write(&mut caller, at as u32 as usize, &out).map_err(|e| wasmi::Error::new(e.to_string()))?;
@@ -141,14 +121,15 @@ impl Bot {
         Ok(Bot { module, linker, engine, fuel, clock, live: None })
     }
 
-    fn instance(&mut self, view: State) -> Result<(), String> {
+    fn instance(&mut self, view: State, legal: Vec<Action>) -> Result<(), String> {
         if let Some((store, _)) = &mut self.live {
             store.data_mut().view = view;
+            store.data_mut().legal = legal;
             store.data_mut().queries = 0;
             return Ok(());
         }
         let limits = StoreLimitsBuilder::new().memory_size(MEMORY).instances(1).tables(4).memories(1).build();
-        let mut store = Store::new(&self.engine, Ctx { view, limits, queries: 0, query_cycles: 0, clock: self.clock });
+        let mut store = Store::new(&self.engine, Ctx { view, legal, limits, queries: 0, query_cycles: 0, clock: self.clock });
         store.limiter(|c| &mut c.limits);
         store.set_fuel(self.fuel).map_err(|e| e.to_string())?;
         let inst = self.linker.instantiate_and_start(&mut store, &self.module).map_err(|e| format!("instantiate: {e}"))?;
@@ -156,26 +137,21 @@ impl Bot {
         Ok(())
     }
 
-    /// One decision; returns the action JSON (or why there is none), fuel used, queries asked
-    /// and the cycles spent answering them.
-    fn act(&mut self, input: &[u8], view: State) -> (Result<Value, String>, u64, u32, u64) {
-        if let Err(e) = self.instance(view) {
+    /// One decision; returns the action picked (None for a pick outside the legal list), or why
+    /// there is none, fuel used, queries asked and the cycles spent answering them.
+    fn act(&mut self, view: State, legal: Vec<Action>) -> (Result<Option<Action>, String>, u64, u32, u64) {
+        let seat = view.current;
+        if let Err(e) = self.instance(view, legal) {
             self.live = None;
             return (Err(e), 0, 0, 0);
         }
         let (store, inst) = self.live.as_mut().unwrap();
         store.data_mut().query_cycles = 0;
         let _ = store.set_fuel(self.fuel);
-        let res = (|| -> Result<Value, wasmi::Error> {
-            let alloc: TypedFunc<i32, i32> = inst.get_typed_func(&mut *store, "arena_alloc")?;
-            let act: TypedFunc<(i32, i32), i64> = inst.get_typed_func(&mut *store, "arena_act")?;
-            let mem = inst.get_memory(&mut *store, "memory").ok_or_else(|| wasmi::Error::new("no memory export"))?;
-            let at = alloc.call(&mut *store, input.len() as i32)?;
-            mem.write(&mut *store, at as u32 as usize, input).map_err(|e| wasmi::Error::new(e.to_string()))?;
-            let (p, n) = unpack(act.call(&mut *store, (at, input.len() as i32))?);
-            let mut out = vec![0u8; n];
-            mem.read(&*store, p, &mut out).map_err(|e| wasmi::Error::new(e.to_string()))?;
-            serde_json::from_slice(&out).map_err(|e| wasmi::Error::new(e.to_string()))
+        let res = (|| -> Result<Option<Action>, wasmi::Error> {
+            let pick: TypedFunc<i32, i32> = inst.get_typed_func(&mut *store, "arena_pick")?;
+            let i = pick.call(&mut *store, seat as i32)?;
+            Ok(arena_abi::resolve(&store.data().legal, i))
         })();
         let left = store.get_fuel().unwrap_or(0);
         let (queries, qc) = (store.data().queries, store.data().query_cycles);
@@ -193,13 +169,6 @@ impl Bot {
     }
 }
 
-fn action_for_mover(s: &State, v: &Value) -> Result<Action, String> {
-    if s.fog {
-        action_from_contract(&fog::player_view(s, s.current), v)
-    } else {
-        action_from_contract(s, v)
-    }
-}
 fn legal_for_mover(s: &State, a: &Action) -> bool {
     if s.fog {
         is_legal(&fog::player_view(s, s.current), a)
@@ -225,16 +194,13 @@ pub fn play_turn(input: Input, wasm: &[u8], clock: fn() -> u64) -> Result<(Outpu
         }
         let t0 = clock();
         let seen = fog::player_view(&s, me);
-        let bytes = serde_json::to_vec(&json!({"seat": me, "day": s.day, "state": serde_json::to_value(&seen).unwrap_or(Value::Null)})).unwrap();
+        let legal = arena_abi::legal(&seen);
         let t1 = clock();
-        let (reply, fuel, queries, qc) = bot.act(&bytes, seen);
+        let (reply, fuel, queries, qc) = bot.act(seen, legal);
         let t2 = clock();
         let (a, mut note) = match reply {
-            Ok(v) => match action_for_mover(&s, &v) {
-                Ok(a) if legal_for_mover(&s, &a) => (a, None),
-                Ok(_) => (Action::EndTurn, Some("illegal action".to_string())),
-                Err(e) => (Action::EndTurn, Some(format!("bad action: {e}"))),
-            },
+            Ok(Some(a)) if legal_for_mover(&s, &a) => (a, None),
+            Ok(_) => (Action::EndTurn, Some("bad pick: not -1 or an index into the legal list".to_string())),
             Err(e) => (Action::EndTurn, Some(e)),
         };
         let a = if moves.len() as u32 >= max_actions && a != Action::EndTurn {
