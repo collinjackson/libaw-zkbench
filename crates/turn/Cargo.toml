@@ -1,0 +1,22 @@
+[package]
+name = "libaw-turn"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "The turn prover's program: play one turn of an arena bot (a WebAssembly module, run by wasmi) on libaw."
+
+[features]
+default = ["std"]
+std = ["libaw/std", "serde/std", "serde_json/std", "libaw-proof/std"]
+
+[dependencies]
+libaw = { path = "../../../libaw/crates/engine", default-features = false }
+libaw-proof = { path = "../proof", default-features = false }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+wasmi = { version = "2.0.0", default-features = false, features = ["stable", "validate", "portable-dispatch", "prefer-btree-collections", "libm"] }
+
+[[bin]]
+name = "turn-native"
+required-features = ["std"]

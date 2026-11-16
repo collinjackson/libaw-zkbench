@@ -8,3 +8,4 @@ methods = { path = "../methods" }
 risc0-zkvm = "~3.0.6"
 libaw-proof = { path = "../../../crates/proof" }
 serde_json = "1"
+libaw-turn = { path = "../../../crates/turn" }

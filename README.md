@@ -190,3 +190,30 @@ Results go in the table below as they come in. Run every executor through `scrip
 | Nexus | 0.3.6 (last release Jan 2026; guest toolchain nightly-2025-05-09) | BUSL-1.1 (non-production use allowed) | the guest hung: the ELF loader filled `.bss` with the bytes that follow it in the file, fixed in [nexus-xyz/nexus-zkvm#618](https://github.com/nexus-xyz/nexus-zkvm/pull/618) (`zkvm/nexus/repro-min`, `rvref`). With the fix the referee matches native on move and turn. `Emulator::execute` keeps every instruction's records, so memory grows ~1.5 GB/s (an unguarded run reached 159 GB); `zkvm/nexus/host` steps blocks instead | not re-measured: parked for the licence | |
 
 Legality is checked with `libaw::actions::is_legal` (one unit's moves), not the full legal list: that cut the game workload from 10.34B to 5.73B cycles in RISC Zero.
+
+## Turn prover: a bot's turn with its WebAssembly interpreted
+
+`crates/turn` is the turn prover of libaw-arena's proofs design: it takes a position and a bot's
+WebAssembly module, runs the bot in wasmi (an interpreter, `no_std`, default features off,
+`portable-dispatch`), answers its `libaw.query` calls natively with libaw, checks and applies
+each action with libaw, and stops at the bot's `end_turn` (cap 400 actions, fuel 2,000,000,000 per
+call, as in the arena). The RISC Zero guest (`zkvm/risc0/methods/turn`) commits the module's
+sha256 and the turn's actions and final hash; it logs a cycle split from `env::cycle_count`.
+
+    cd zkvm/risc0 && cargo build --release -p host --bin turn
+    ../../scripts/guarded.sh ./target/release/turn ../workloads/turn.json BOT.wasm
+
+RISC Zero 3.0.6 executor, `turn` workload's start position, libaw-arena's example bots (Nov 2026).
+Output matches the native run for each.
+
+| Bot | Module | Actions | User cycles | wasmi (bot's own code) | libaw queries | Apply actions | Bot input JSON | Load module | Execute (Mac) |
+|---|---|---|---|---|---|---|---|---|---|
+| greedy | 78 KB | 18 | 2.68B | 2.57B | 50M (18 `legal_actions`) | 31M | 19M | 3.9M | 21 s |
+| random | 84 KB | 17 | 2.79B | 2.70B | 44M (17) | 28M | 18M | 4.1M | 22 s |
+| baseline (libaw inside the module) | 460 KB | 18 | 27.4B | 27.3B | 0 | 37M | 19M | 21M | 213 s |
+
+The native referee's turn is 28.9M, so interpreting even the simplest bot costs about 90 times
+libaw's own work. wasmi spends about 6 cycles per unit of fuel on greedy and 13 on baseline
+(436M and 2.17B fuel for the turn). Every action the bot parses its whole view from JSON
+again, inside the interpreter. Executor peak RSS was about 100 MB. `auto-dispatch` (tail-call
+dispatch) faults in the guest with a store access fault; `portable-dispatch` works.
