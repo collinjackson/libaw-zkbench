@@ -43,6 +43,9 @@ jobs:
           git -C libaw checkout --quiet "$LIBAW_REF"
           git -C libaw-arena checkout --quiet "$ARENA_REF"
       - name: RISC Zero toolchain (rzup)
+        env:
+          # rzup looks up releases on api.github.com; unauthenticated, the runners' shared limit runs out.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           curl -sSfL https://risczero.com/install | bash
           R=$HOME/.risc0/bin
