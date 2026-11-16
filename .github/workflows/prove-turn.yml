@@ -1,0 +1,91 @@
+# Proves the turn prover and whole games with RISC Zero's CPU prover on a GitHub-hosted runner
+# (ubuntu-latest: 4 cores, 16 GB), wraps each receipt as Groth16 (Docker) and verifies it. One
+# job per workload, so they run side by side. Times and sizes are in each job's log and summary;
+# the receipts are kept as artifacts.
+name: prove-turn
+on:
+  workflow_dispatch:
+  push:
+    branches: [turn-prover-cycles]
+    paths: [".github/workflows/prove-turn.yml"]
+permissions:
+  contents: read
+env:
+  # The commits the README's numbers were measured at.
+  LIBAW_REF: 6345269970e766a46ff1d85f0ea279723f0f91f4
+  ARENA_REF: e8f9ed04b71da6e0475f3f943e50798899dc7946
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: turn-random
+            cmd: ./target/release/turn ../workloads/turn.json $BOTS/random.wasm
+          - name: game-greedy-random-3-days
+            cmd: ./target/release/game $MAP 7 3 $BOTS/greedy.wasm $BOTS/random.wasm
+          - name: game-greedy-random-6-days
+            cmd: ./target/release/game $MAP 7 6 $BOTS/greedy.wasm $BOTS/random.wasm
+          - name: game-random-greedy-30-days
+            cmd: ./target/release/game $MAP 7 30 $BOTS/random.wasm $BOTS/greedy.wasm
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: libaw-zkbench }
+      - uses: actions/checkout@v4
+        with: { repository: collinjackson/libaw, path: libaw, fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { repository: collinjackson/libaw-arena, path: libaw-arena, fetch-depth: 0 }
+      - name: Pin libaw and libaw-arena
+        run: |
+          git -C libaw checkout --quiet "$LIBAW_REF"
+          git -C libaw-arena checkout --quiet "$ARENA_REF"
+      - name: RISC Zero toolchain (rzup)
+        run: |
+          curl -sSfL https://risczero.com/install | bash
+          R=$HOME/.risc0/bin
+          $R/rzup install rust 1.97.0
+          $R/rzup install cpp
+          $R/rzup install cargo-risczero 3.0.6
+          $R/rzup install r0vm 3.0.6
+          echo "$R" >> "$GITHUB_PATH"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            libaw-zkbench/zkvm/risc0/target
+          key: risc0-${{ hashFiles('libaw-zkbench/zkvm/risc0/Cargo.lock', 'libaw-zkbench/crates/**', 'libaw-zkbench/zkvm/risc0/methods/**') }}-${{ env.LIBAW_REF }}-${{ env.ARENA_REF }}
+          restore-keys: risc0-
+      - name: Build the bots (libaw-arena's pinned toolchain)
+        working-directory: libaw-arena
+        run: |
+          rustup toolchain install
+          python3 scripts/build_registry.py --only random,greedy
+          sha256sum bots/out/random.wasm bots/out/greedy.wasm
+      - name: Build the hosts and guests
+        working-directory: libaw-zkbench/zkvm/risc0
+        run: cargo build --release -p host --bin turn --bin game
+      - name: Pull the Groth16 prover image
+        run: |
+          IMG=$(grep -rhoE 'risczero/risc0-groth16-prover:[A-Za-z0-9._-]+' ~/.cargo/registry/src/*/risc0-groth16-3.0.6/src/prove/docker.rs | head -1)
+          echo "image $IMG"
+          /usr/bin/time -f "docker pull: %e s" docker pull --quiet "$IMG"
+      - name: Execute, prove, compress, wrap as Groth16, verify
+        working-directory: libaw-zkbench/zkvm/risc0
+        env:
+          BOTS: ${{ github.workspace }}/libaw-arena/bots/out
+          MAP: ${{ github.workspace }}/libaw-arena/maps/skirmish.json
+          RISC0_INFO: "1"
+        run: |
+          nproc; free -g
+          CAP_GB=15 /usr/bin/time -v ../../scripts/guarded.sh ${{ matrix.cmd }} --groth16 --receipt ${{ matrix.name }}.groth16.bin 2>&1 | tee run.log
+          { echo "### ${{ matrix.name }}"; echo '```'; grep -vE '^R0VM|^costs' run.log | grep -E 'cycles|prove|compress|groth16|guarded|Elapsed|Maximum resident|receipt'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            libaw-zkbench/zkvm/risc0/*.groth16.bin
+            libaw-zkbench/zkvm/risc0/run.log
